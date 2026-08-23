@@ -70,12 +70,43 @@ const creatorsText = creators.length
   ? creators.join('\n\n')
   : '（无创作者 digest——先拉取并分析对标账号）';
 
-// ── 3) 素材库 ──
+// ── 3) 素材库（长文先提炼核心观点，再供选题策划参考）──
+async function distillMaterial(title, note) {
+  const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      model: 'deepseek-v4-flash',   // 提炼用快模型，够用且快
+      messages: [
+        { role: 'system', content: '你是内容提炼助手。通读全文，输出紧凑要点供选题策划参考。只输出提炼内容，不要寒暄、不要评价。' },
+        { role: 'user', content: `标题：${title}\n\n全文：\n${note}\n\n请提炼输出：\n1. 核心观点（2-3句）\n2. 3-5个适合在小红书表达的切入角度\n3. 3-5句可直接引用的金句` },
+      ],
+      temperature: 0.3,
+      max_tokens: 2000,
+    }),
+    signal: AbortSignal.timeout(120000),
+  });
+  const j = await r.json();
+  return (r.ok && j.choices?.[0]?.message?.content) || '';
+}
+
 let materialsText = '（素材库为空）';
 const matPath = path.join(root, 'materials', 'materials.json');
 if (fs.existsSync(matPath)) {
   const list = JSON.parse(fs.readFileSync(matPath, 'utf8'));
-  if (list.length) materialsText = list.map(m => `- ${m.title}${m.note ? '：' + m.note : ''}`).join('\n');
+  if (list.length) {
+    console.log(`→ 提炼素材库全文（${list.length} 篇）…`);
+    const parts = await Promise.all(list.map(async m => {
+      const note = (m.note || '').trim();
+      if (!note) return `- ${m.title}（无内容）`;
+      // 短内容直接用原文；长文先提炼核心观点，避免整篇塞进 prompt 撑爆上下文
+      const body = note.length <= 600
+        ? note
+        : (await distillMaterial(m.title, note)) || note.slice(0, 600);
+      return `## ${m.title}\n${body}`;
+    }));
+    materialsText = parts.join('\n\n');
+  }
 }
 
 const userMsg = [

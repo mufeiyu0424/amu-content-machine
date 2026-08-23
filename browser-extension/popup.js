@@ -57,8 +57,8 @@ $('#grab').addEventListener('click', async () => {
     // 取最长的一段作为正文
     const best = texts.sort((a, b) => b.length - a.length)[0] || '';
     if (best) {
-      $('#note').value = best.slice(0, 15000);
-      status('✓ 已抓取正文（' + best.length + ' 字' + (best.length > 15000 ? '，已截断' : '') + '）');
+      $('#note').value = best;   // 全文保存，不截断
+      status('✓ 已抓取正文（' + best.length + ' 字，全文保存）');
     } else {
       status('没抓到正文（可能正文是图片/画布渲染，只能手动复制）', false);
     }
