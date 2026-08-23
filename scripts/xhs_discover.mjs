@@ -38,10 +38,9 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 // no spaces — spaces appeared to trigger HTTP 400
 // Keywords can be overridden via CLI (comma-separated): node xhs_discover.mjs "治愈,情绪价值"
 const DEFAULT_KEYWORDS = [
-  'AI产品经理', 'vibecoding', 'AI工具推荐', '文科生AI', 'AI创业',
-  'ClaudeCode', 'AI编程', '独立开发', 'AI出海', '硅谷AI',
-  'Cursor', 'AIAgent', 'AI转型', 'AI副业', 'AI学习',
-  '大模型', 'prompt工程', 'AI创作者', 'AI产品', '张咋啦',
+  '独居vlog', '男生独居', '下班后的生活', '治愈系vlog', '生活方式',
+  '打工人下班', '独居日记', '生活感悟', '自我疗愈', '情绪文案',
+  '宅家日常', '独居生活',
 ];
 const KEYWORDS = process.argv[2]
   ? process.argv[2].split(/[,，]/).map(s => s.trim()).filter(Boolean)

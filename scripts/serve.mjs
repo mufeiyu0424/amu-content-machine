@@ -226,11 +226,13 @@ async function api(req, res) {
 
   if (req.url.startsWith('/api/discover')) {
     const kws = (body.keywords || '').split(/[,，]/).map(s => s.trim()).filter(Boolean);
-    if (!kws.length) return send(400, { error: '请至少输入一个关键词' });
     if (kws.some(k => k.includes(' '))) return send(400, { error: '关键词不能含空格（接口限制）' });
     const top = Math.min(Math.max(+body.top || 12, 1), 24);
-    return send(200, enqueue(`发现创作者：${kws.join(' / ')}`,
-      [['xhs_discover.mjs', kws.join(',')], ['xhs_creator.mjs', '--top', String(top)], ...FINALIZE]));
+    // 关键词留空 → 用脚本内置的赛道默认关键词（独居vlog、下班后的生活…）
+    const args = kws.length ? ['xhs_discover.mjs', kws.join(',')] : ['xhs_discover.mjs'];
+    const label = kws.length ? `发现创作者：${kws.join(' / ')}` : '发现创作者（赛道默认关键词）';
+    return send(200, enqueue(label,
+      [args, ['xhs_creator.mjs', '--top', String(top)], ...FINALIZE]));
   }
 
   if (req.url.startsWith('/api/fix_links')) {
@@ -245,6 +247,8 @@ async function api(req, res) {
     if (!ideaId) return send(400, { error: '缺少选题 id' });
     const args = ['ai_draft.mjs', ideaId];
     if (MODELS.includes(body.model)) args.push(body.model);
+    const blogger = (body.blogger || '').trim();
+    if (blogger) args.push('--blogger', blogger);
     return send(200, enqueue('AI 生成草稿（DeepSeek）',
       [args, ['build_dashboard.mjs', '--lang', 'zh']]));
   }

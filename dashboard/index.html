@@ -552,7 +552,7 @@
       <h3 style="margin-top:0">🔍 按关键词发现创作者</h3>
       <p class="sub">按赛道关键词搜索笔记、发现持续输出的创作者（按「关键词广度→互动量」排序），自动拉取头部博主的笔记。关键词用逗号分隔、不能含空格。约 $0.001/请求，一次发现几美分。</p>
       <div class="adm-row">
-        <input type="text" id="adm-ds-kw" placeholder="如：治愈,情绪价值,拒绝内耗" style="max-width:280px">
+        <input type="text" id="adm-ds-kw" placeholder="留空 = 用赛道默认词（独居vlog、下班后的生活…）" style="max-width:320px">
         <label style="font-size:12.5px;color:var(--muted)">深入拉取前 <input type="number" id="adm-ds-top" value="12" min="1" max="24" style="width:56px"> 位</label>
         <button class="btn" id="adm-ds-btn">开始发现</button>
       </div>
@@ -610,7 +610,7 @@
   };
   $('#adm-ds-btn').onclick=()=>{
     const kw=$('#adm-ds-kw').value.trim();
-    if(!kw) return say('#adm-ds-msg','✗ 请输入至少一个关键词',false);
+    // 关键词留空 → 后端用赛道默认词
     call('#adm-ds-btn','#adm-ds-msg','/api/discover',{keywords:kw,top:+$('#adm-ds-top').value||12});
   };
   $('#adm-reload').onclick=()=>location.reload();
