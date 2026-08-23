@@ -1,6 +1,6 @@
 // Generate the vault (灵感库) via DeepSeek — three-way synthesis:
 //   1) 自身账号分析 (analysis/me-analysis.json, fallback me.json)
-//   2) 小红书创作者爆款 (analysis/creators/*-digest.md, top titles)
+//   2) 小红书同赛道创作者 (creators/*.json — 看板里拉过详情的博主)
 //   3) 素材库 (materials/materials.json)
 // Borrows creators' viral 写法/结构/情绪 into each idea's style_hint.
 // Full rewrite: replaces vault/vault.json.ideas.
@@ -45,30 +45,25 @@ if (fs.existsSync(meAnalysis)) {
   }
 }
 
-// ── 2) 创作者爆款（每号 TOP 10 标题+赞）──
-function digestTop(dir, limit = 10) {
+// ── 2) 同赛道创作者（看板里拉过详情的博主，取各自 TOP10 爆款标题）──
+function creatorsFromBoard(dir, limit = 10) {
   if (!fs.existsSync(dir)) return [];
   const out = [];
   for (const f of fs.readdirSync(dir)) {
-    if (!f.endsWith('-digest.md')) continue;
-    const t = fs.readFileSync(path.join(dir, f), 'utf8');
-    const name = (t.match(/^# (.+?) — /m) || [])[1]?.trim() || f;
-    const bio = (t.match(/^Bio: (.+)$/m) || [])[1]?.trim() || '';
-    const rows = [];
-    for (const line of t.split('\n')) {
-      const c = line.split('|').map(s => s.trim());
-      if (c.length < 5 || !c[1] || /^[-:]+$/.test(c[1]) || c[1] === 'title') continue;
-      rows.push({ title: c[1], likes: parseInt((c[2] || '0').replace(/[^\d]/g, ''), 10) || 0 });
-    }
-    const top = rows.slice(0, limit).map(r => `「${r.title}」(${r.likes}赞)`).join('\n');
-    out.push(`## ${name}\n${bio}\n${top}`);
+    if (!f.endsWith('.json')) continue;
+    try {
+      const c = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+      const notes = (c.notes || []).slice().sort((a, b) => (b.likes || 0) - (a.likes || 0));
+      const top = notes.slice(0, limit).map(n => `「${n.title}」(${n.likes}赞)`).join('\n');
+      out.push(`## ${c.name || f}\n${c.desc || ''}\n${top}`);
+    } catch {}
   }
   return out;
 }
-const creators = digestTop(path.join(root, 'analysis', 'creators'), 10);
+const creators = creatorsFromBoard(path.join(root, 'creators'), 10);
 const creatorsText = creators.length
   ? creators.join('\n\n')
-  : '（无创作者 digest——先拉取并分析对标账号）';
+  : '（尚无同赛道创作者——请先在看板「添加博主 / 发现创作者」拉取对标账号）';
 
 // ── 3) 素材库（长文先提炼核心观点，再供选题策划参考）──
 async function distillMaterial(title, note) {
