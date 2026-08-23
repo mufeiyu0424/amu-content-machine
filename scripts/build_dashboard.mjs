@@ -64,6 +64,22 @@ const median = arr => {
 
 // analysis files are optional — fold them in when present
 const readIf = f => fs.existsSync(path.join(root, f)) ? read(f) : null;
+
+// 蒸馏博主风格档案（styles/ 目录）——供草稿页「借鉴博主」下拉使用
+function loadStyles() {
+  const out = [];
+  const dir = path.join(root, 'styles');
+  if (!fs.existsSync(dir)) return out;
+  for (const f of fs.readdirSync(dir)) {
+    if (!f.endsWith('.json')) continue;
+    try {
+      const a = JSON.parse(fs.readFileSync(path.join(dir, f), 'utf8'));
+      const b = a.博主 || {};
+      out.push({ name: b.name || f.replace(/\.json$/, ''), tags: b.赛道标签 || [] });
+    } catch {}
+  }
+  return out;
+}
 const creatorAnalyses = {};
 const caDir = path.join(root, 'analysis', 'creators');
 if (fs.existsSync(caDir)) {
@@ -143,16 +159,7 @@ const subCreators = loadPlatform('creators_sub', 'analysis/sub', 'slug')
     subLandscape: readIf('analysis/sub-landscape.json'),
     x: xCreators,
     sub: subCreators,
-    vault: (() => {
-      const v = readIf('vault/vault.json');
-      const q = readIf('vault/interview-questions.json');
-      // Questions are keyed by the idea's stable `id`; numeric keys are a legacy
-      // fallback (fragile — breaks if ideas are ever inserted or deleted).
-      if (v && q) v.ideas.forEach((idea, i) => {
-        idea.questions = (idea.id && q[idea.id]) || q[String(i)] || [];
-      });
-      return v;
-    })(),
+    vault: readIf('vault/vault.json'),
     meta: {
       creators: creators.length,
       notes: creators.reduce((s, c) => s + c.hits, 0),
@@ -162,6 +169,7 @@ const subCreators = loadPlatform('creators_sub', 'analysis/sub', 'slug')
       costUsd: +(keywords.length * 0.001).toFixed(3),
     },
     keywords, creators,
+    styles: loadStyles(),
   });
   console.log(`data.js  → ${creators.length} creators (${creators.filter(c => c.avatar).length} with avatars)`);
 }
