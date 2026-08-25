@@ -233,6 +233,15 @@ async function api(req, res) {
       [args, ['build_dashboard.mjs', '--lang', 'zh']]));
   }
 
+  if (req.url.startsWith('/api/oracle-from-material')) {
+    const mid = (body.materialId || '').trim();
+    if (!mid) return send(400, { error: '缺少素材 id' });
+    const args = ['ai_oracle_from_material.mjs', mid];
+    if (MODELS.includes(body.model)) args.push(body.model);
+    return send(200, enqueue('基于素材生成选题',
+      [args, ['build_dashboard.mjs', '--lang', 'zh']]));
+  }
+
   if (req.url.startsWith('/api/oracle')) {
     const args = ['ai_oracle.mjs'];
     if (MODELS.includes(body.model)) args.push(body.model);
