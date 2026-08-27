@@ -1089,6 +1089,18 @@
   }
 
   /* ══ Vault ══ */
+  function jumpToMaterial(mid){
+    if(!mid) return;
+    location.hash='materials';
+    setTimeout(()=>{
+      const card=document.querySelector('#materials-body [data-id="'+mid+'"]');
+      if(!card) return;
+      card.classList.add('open');
+      card.scrollIntoView({behavior:'smooth',block:'start'});
+      card.style.outline='2px solid #C6407A';
+      setTimeout(()=>{ card.style.outline=''; },2500);
+    },120);
+  }
   function renderVault(){
     const V=SCAN&&SCAN.vault;
     if(!V||!V.ideas||!V.ideas.length){$('#vault-body').innerHTML='<div class="empty-big"><b>灵感库生成中…</b><br>Oracle 正在综合赛道全景 + 你的内容分析生成选题。</div>';return;}
@@ -1106,7 +1118,7 @@
         <div class="vt">${esc(v.title)}</div>
         <div class="va">${esc(v.angle||'')}</div>
         <div class="vmeta">${v.format?`<span>${esc(v.format)}</span>`:''}${v.inspiration?`<span>💡 ${esc(v.inspiration)}</span>`:''}</div>
-        ${v.material?`<div class="vw" style="margin-top:6px"><b>📄 素材来源：</b>${esc(v.material)}</div>`:''}
+        ${v.material?`<div class="vw" style="margin-top:6px"><b>📄 素材来源：</b><a href="#materials" class="mat-jump" data-mid="${esc(v.materialId||'')}">${esc(v.material)} ↗</a></div>`:''}
         <div class="vw"><b>为什么有效：</b>${esc(v.why||'')}</div>
         ${v.style_hint?`<div class="vw" style="margin-top:6px"><b>🎨 爆款手法：</b>${esc(v.style_hint)}</div>`:''}
         <button class="vgo" data-vi="${V.ideas.indexOf(v)}">用这个选题写草稿 →</button>
@@ -1121,6 +1133,7 @@
       </div>`;
     }).join('');
     $('#vault-body').addEventListener('click',e=>{
+      const mj=e.target.closest('.mat-jump');if(mj){ e.preventDefault(); jumpToMaterial(mj.dataset.mid); return; }
       const b=e.target.closest('.vgo');if(!b)return;
       const idea=V.ideas[+b.dataset.vi];
       if(idea && idea.id){ setCurIdea(idea.id); }

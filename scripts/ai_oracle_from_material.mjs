@@ -147,7 +147,8 @@ const newIdeas = ideas.slice(0, 3).map((v, i) => ({
   score: Math.round((+v.score || 0) * 10) / 10,
   type: String(v.type || '常青').includes('热点') ? '热点' : '常青',
   source: '素材',
-  material: material.title,   // 记录素材来源标题，供前端卡片展示
+  material: material.title,   // 素材标题，供前端卡片展示
+  materialId: material.id,    // 素材 id，供前端跳转到素材库原文
   title: v.title || '',
   angle: v.angle || '',
   why: v.why || '',
