@@ -45,6 +45,9 @@ $('#grab').addEventListener('click', async () => {
         if (!root) return '';
         const clone = root.cloneNode(true);
         clone.querySelectorAll('nav, header, footer, aside, form, script, style, noscript, [role="navigation"], [aria-hidden="true"]').forEach(e => e.remove());
+        // 给块级元素后多插一个换行，让 innerText 出来带 \n\n（段落间距）。
+        // 嵌套元素会重复插入，最后用 \n{3,} → \n\n 规范化。
+        clone.querySelectorAll('p, h1, h2, h3, h4, h5, h6, li, blockquote, br').forEach(el => el.insertAdjacentText('afterend', '\n'));
         return (clone.innerText || '')
           .replace(/[ \t]+/g, ' ')
           .replace(/\n[ \t]+/g, '\n')

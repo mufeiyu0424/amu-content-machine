@@ -1144,6 +1144,21 @@
   if(SCAN)renderVault();
 
   /* ══ Materials（素材库） ══ */
+  // 把素材正文切成可读段落：已有 \n\n（插件新抓的）直接按空行切；
+  // 老的素材没有 \n\n，按中文句末标点切，每段 ≤ ~220 字，合并短句。
+  function splitNote(text){
+    if(!text) return [];
+    if(text.includes('\n\n')) return text.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+    const parts = text.split(/(?<=[。！？；…])\s*|\n/);
+    const out = []; let cur = '';
+    for(const s of parts){
+      if(!s) continue;
+      if((cur + s).length > 220 && cur){ out.push(cur.trim()); cur=''; }
+      cur += s;
+    }
+    if(cur.trim()) out.push(cur.trim());
+    return out;
+  }
   function renderMaterials(){
     const list=(ME&&ME.materials)||[];
     const box=$('#materials-body');
@@ -1157,7 +1172,7 @@
           </div>
           <div class="foll">${(m.createdAt||'').slice(0,10)}<button class="mat-del" data-id="${esc(m.id)}" title="删除" style="background:none;border:0;color:var(--muted);cursor:pointer;font-size:14px;margin-top:4px">✕</button><br><span class="caret">▸</span></div>
         </div>
-        <div class="scard-body">${m.note?`<div style="font-size:14px;line-height:1.7;white-space:pre-wrap">${esc(m.note)}</div>`:'<div class="sub">（无备注）</div>'}</div>
+        <div class="scard-body">${m.note?splitNote(m.note).map(p=>`<p style="margin:0 0 1em 0;line-height:1.75">${esc(p)}</p>`).join(''):'<div class="sub">（无备注）</div>'}</div>
       </div>`).join('');
     box.addEventListener('click',async e=>{
       const del=e.target.closest('.mat-del');
