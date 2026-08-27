@@ -147,11 +147,12 @@ const newIdeas = ideas.slice(0, 3).map((v, i) => ({
   score: Math.round((+v.score || 0) * 10) / 10,
   type: String(v.type || '常青').includes('热点') ? '热点' : '常青',
   source: '素材',
+  material: material.title,   // 记录素材来源标题，供前端卡片展示
   title: v.title || '',
   angle: v.angle || '',
   why: v.why || '',
   format: v.format || '',
-  inspiration: v.inspiration || `素材：${material.title}`,
+  inspiration: v.inspiration || '',
   style_hint: v.style_hint || '',
 }));
 vault.ideas = [...newIdeas, ...(vault.ideas || [])];
