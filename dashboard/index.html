@@ -1330,7 +1330,7 @@
     box.innerHTML=keys.map(k=>{
       const d=drafts[k];
       const date=String(d.updatedAt||'').slice(0,10);
-      return `<div class="dhist" data-id="${esc(k)}">${esc(d.idea||k)}<span class="dhmeta">${esc(d.version||'')} · ${esc(date)}</span></div>`;
+      return `<div class="dhist" data-id="${esc(k)}">${esc(d.idea||k)}<span class="dhmeta">${esc(d.version||'')} · ${esc(date)}</span><button class="dhist-del" data-id="${esc(k)}" title="删除草稿" style="float:right;background:none;border:0;color:var(--muted);cursor:pointer;font-size:14px">✕</button></div>`;
     }).join('');
   }
   function showDraftById(id){
@@ -1341,7 +1341,21 @@
   }
   if(ME){renderDraft(); renderDraftHistory();}
   $('#dr-idea').onchange=()=>{ setCurIdea($('#dr-idea').value); renderDraft(); };
-  $('#draft-history').onclick=e=>{ const o=e.target.closest('.dhist'); if(o) showDraftById(o.dataset.id); };
+  $('#draft-history').onclick=e=>{
+    const del=e.target.closest('.dhist-del');
+    if(del){ e.stopPropagation();
+      const id=del.dataset.id;
+      const d=(ME&&ME.drafts&&ME.drafts[id])||{};
+      if(!confirm(`确定删除草稿「${d.idea||id}」吗？\n删除后无法恢复。`)) return;
+      del.disabled=true;
+      fetch('/api/draft/'+encodeURIComponent(id),{method:'DELETE'})
+        .then(r=>r.json())
+        .then(j=>{ if(j.error){ alert('删除失败：'+j.error); del.disabled=false; return; } setTimeout(()=>location.reload(),500); })
+        .catch(()=>{ alert('删除失败（服务器没起？）'); del.disabled=false; });
+      return;
+    }
+    const o=e.target.closest('.dhist'); if(o) showDraftById(o.dataset.id);
+  };
   window.__openDraft=()=>{ fillIdeaSelect($('#dr-idea'),'选择选题…'); fillCouncilDraftSelect(); renderDraft(); renderDraftHistory(); };
 
   /* ══ Council ══ */

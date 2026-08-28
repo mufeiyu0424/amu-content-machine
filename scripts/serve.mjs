@@ -179,6 +179,17 @@ async function api(req, res) {
     enqueue('刷新面板数据', [['build_dashboard.mjs', '--lang', 'zh']]);
     return send(200, { ok: true, total: vault.ideas.length });
   }
+  if (req.method === 'DELETE' && req.url.startsWith('/api/draft/')) {
+    const id = decodeURIComponent(req.url.split('/api/draft/')[1] || '').trim();
+    if (!id) return send(400, { error: '缺少草稿 id' });
+    const draftsPath = path.join(root, 'drafts', 'index.json');
+    const drafts = fs.existsSync(draftsPath) ? JSON.parse(fs.readFileSync(draftsPath, 'utf8')) : {};
+    if (!drafts[id]) return send(404, { error: '未找到该草稿' });
+    delete drafts[id];
+    fs.writeFileSync(draftsPath, JSON.stringify(drafts, null, 2));
+    enqueue('刷新面板数据', [['build_dashboard.mjs', '--lang', 'zh']]);
+    return send(200, { ok: true, total: Object.keys(drafts).length });
+  }
   if (req.method !== 'POST') return send(405, { error: 'method not allowed' });
   const body = await readBody(req);
 
