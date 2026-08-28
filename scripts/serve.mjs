@@ -167,6 +167,18 @@ async function api(req, res) {
     enqueue('刷新面板数据', [['build_dashboard.mjs', '--lang', 'zh']]);
     return send(200, { ok: true, total: list.length });
   }
+  if (req.method === 'DELETE' && req.url.startsWith('/api/idea/')) {
+    const id = decodeURIComponent(req.url.split('/api/idea/')[1] || '').trim();
+    if (!id) return send(400, { error: '缺少选题 id' });
+    const vaultPath = path.join(root, 'vault', 'vault.json');
+    const vault = fs.existsSync(vaultPath) ? JSON.parse(fs.readFileSync(vaultPath, 'utf8')) : {};
+    const before = (vault.ideas || []).length;
+    vault.ideas = (vault.ideas || []).filter(v => v.id !== id);
+    if (vault.ideas.length === before) return send(404, { error: '未找到该选题' });
+    fs.writeFileSync(vaultPath, JSON.stringify(vault, null, 2));
+    enqueue('刷新面板数据', [['build_dashboard.mjs', '--lang', 'zh']]);
+    return send(200, { ok: true, total: vault.ideas.length });
+  }
   if (req.method !== 'POST') return send(405, { error: 'method not allowed' });
   const body = await readBody(req);
 

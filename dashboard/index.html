@@ -243,6 +243,9 @@
   .vmeta{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
   .vmeta span{font-size:11px;background:var(--cream);border:1px solid var(--line);border-radius:999px;padding:3px 9px}
   .vcard .vgo{margin-top:12px;font-size:12px;color:#C6407A;background:none;border:0;cursor:pointer;padding:0;font-weight:500}
+  .vcard .vdrafted{font-size:11px;color:#1a7f4b;background:#e7f5ec;border:1px solid #bfe6cd;border-radius:999px;padding:2px 8px;margin-left:6px;font-weight:500}
+  .vcard .vdel{float:right;font-size:12px;color:var(--muted);background:none;border:1px solid var(--line);border-radius:8px;cursor:pointer;padding:3px 10px}
+  .vcard .vdel:hover{color:#c0392b;border-color:#c0392b}
 
   /* idea-driven interview */
   @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
@@ -1112,9 +1115,12 @@
     const groupOf=v=>(v.source==='素材'||v.source==='material')?'素材':'track';
     const card=(v)=>{
       const ever=String(v.type||'').includes('常青');
+      const drafted = ME.drafts && ME.drafts[v.id];
       return `<div class="vcard">
         <span class="vrank">${v.score||''}分</span>
         <span class="vtype ${ever?'ever':'fresh'}">${ever?'🌲 常青':'🔥 热点'}</span>
+        ${drafted?'<span class="vdrafted">✅ 已写草稿</span>':''}
+        <button class="vdel" data-del-id="${esc(v.id)}">🗑 删除</button>
         <div class="vt">${esc(v.title)}</div>
         <div class="va">${esc(v.angle||'')}</div>
         <div class="vmeta">${v.format?`<span>${esc(v.format)}</span>`:''}${v.inspiration?`<span>💡 ${esc(v.inspiration)}</span>`:''}</div>
@@ -1134,6 +1140,22 @@
     }).join('');
     $('#vault-body').addEventListener('click',e=>{
       const mj=e.target.closest('.mat-jump');if(mj){ e.preventDefault(); jumpToMaterial(mj.dataset.mid); return; }
+      const del=e.target.closest('.vdel');
+      if(del){ e.stopPropagation();
+        const id=del.dataset.delId;
+        const idea=V.ideas.find(v=>v.id===id);
+        if(!idea) return;
+        if(!confirm(`确定删除选题「${idea.title}」吗？\n（已写草稿会保留为历史草稿，不会丢）`)) return;
+        del.disabled=true; del.textContent='删除中…';
+        fetch('/api/idea/'+encodeURIComponent(id),{method:'DELETE'})
+          .then(r=>r.json())
+          .then(j=>{
+            if(j.error){ alert('删除失败：'+j.error); del.disabled=false; del.textContent='🗑 删除'; return; }
+            setTimeout(()=>location.reload(),500);
+          })
+          .catch(()=>{ alert('删除失败（服务器没起？）'); del.disabled=false; del.textContent='🗑 删除'; });
+        return;
+      }
       const b=e.target.closest('.vgo');if(!b)return;
       const idea=V.ideas[+b.dataset.vi];
       if(idea && idea.id){ setCurIdea(idea.id); }

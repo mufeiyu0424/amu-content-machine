@@ -143,18 +143,29 @@ catch (e) { console.error('✗ JSON 解析失败：', e.message, content.slice(0
 const ideas = data.ideas || data;
 if (!Array.isArray(ideas) || !ideas.length) { console.error('✗ 没有解析到选题'); process.exit(1); }
 
-// 规范化 + 写入 vault.json（全量重写）
+// 规范化 + 写入 vault.json（全量重写，但保留「已写草稿」的旧选题）
 // 选题 id 用「日期+序号」生成永久唯一 id（如 v20260821-01），
 // 避免每次全量重写都用 v01-v15 导致草稿/评审按 id 错位。
 const vaultPath = path.join(root, 'vault', 'vault.json');
 const vault = fs.existsSync(vaultPath) ? JSON.parse(fs.readFileSync(vaultPath, 'utf8')) : {};
 // 时间戳到秒（YYYYMMDDHHMMSS），确保同一天内多次刷新也不会撞编号
 const ts = new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '');
-vault.ideas = ideas.slice(0, 15).map((v, i) => ({
+
+// 已写草稿的选题要保留（不被全量重写清掉）——读 drafts/index.json 收集 ideaId
+const draftsPath = path.join(root, 'drafts', 'index.json');
+const draftedIds = new Set();
+if (fs.existsSync(draftsPath)) {
+  try {
+    const drafts = JSON.parse(fs.readFileSync(draftsPath, 'utf8'));
+    Object.keys(drafts || {}).forEach(id => draftedIds.add(id));
+  } catch {}
+}
+
+const newTrackIdeas = ideas.slice(0, 15).map((v, i) => ({
   id: `v${ts}-${String(i + 1).padStart(2, '0')}`,
   score: Math.round((+v.score || 0) * 10) / 10,
   type: String(v.type || '常青').includes('热点') ? '热点' : '常青',
-  source: v.source || 'track',
+  source: (v.source === '素材' || v.source === 'material') ? '素材' : 'track',
   title: v.title || '',
   angle: v.angle || '',
   why: v.why || '',
@@ -162,9 +173,15 @@ vault.ideas = ideas.slice(0, 15).map((v, i) => ({
   inspiration: v.inspiration || '',
   style_hint: v.style_hint || '',
 }));
+
+// 保留旧灵感库里已写草稿的选题（赛道 + 素材都保留）
+const oldIdeas = vault.ideas || [];
+const keptIdeas = oldIdeas.filter(v => draftedIds.has(v.id));
+
+vault.ideas = [...newTrackIdeas, ...keptIdeas];
 vault.generatedAt = new Date().toISOString();
 vault.generatedBy = 'ai_oracle';
 fs.writeFileSync(vaultPath, JSON.stringify(vault, null, 2));
 
-console.log(`✓ 灵感库已重写：${vault.ideas.length} 条选题`);
+console.log(`✓ 灵感库已重写：${vault.ideas.length} 条选题（新增 ${newTrackIdeas.length}，保留已写草稿 ${keptIdeas.length}）`);
 console.log(`  tokens: ${j.usage?.total_tokens ?? '?'}`);
