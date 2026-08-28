@@ -244,7 +244,9 @@
   .vmeta span{font-size:11px;background:var(--cream);border:1px solid var(--line);border-radius:999px;padding:3px 9px}
   .vcard .vgo{margin-top:12px;font-size:12px;color:#C6407A;background:none;border:0;cursor:pointer;padding:0;font-weight:500}
   .vcard .vdrafted{font-size:11px;color:#1a7f4b;background:#e7f5ec;border:1px solid #bfe6cd;border-radius:999px;padding:2px 8px;margin-left:6px;font-weight:500}
-  .vcard .vdel{float:right;font-size:12px;color:var(--muted);background:none;border:1px solid var(--line);border-radius:8px;cursor:pointer;padding:3px 10px}
+  .vcard .vactions{display:flex;justify-content:space-between;align-items:center;margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+  .vcard .vactions .vgo{margin-top:0}
+  .vcard .vdel{font-size:12px;color:var(--muted);background:none;border:1px solid var(--line);border-radius:8px;cursor:pointer;padding:4px 12px;transition:color .15s,border-color .15s}
   .vcard .vdel:hover{color:#c0392b;border-color:#c0392b}
 
   /* idea-driven interview */
@@ -1120,14 +1122,16 @@
         <span class="vrank">${v.score||''}分</span>
         <span class="vtype ${ever?'ever':'fresh'}">${ever?'🌲 常青':'🔥 热点'}</span>
         ${drafted?'<span class="vdrafted">✅ 已写草稿</span>':''}
-        <button class="vdel" data-del-id="${esc(v.id)}">🗑 删除</button>
         <div class="vt">${esc(v.title)}</div>
         <div class="va">${esc(v.angle||'')}</div>
         <div class="vmeta">${v.format?`<span>${esc(v.format)}</span>`:''}${v.inspiration?`<span>💡 ${esc(v.inspiration)}</span>`:''}</div>
         ${v.material?`<div class="vw" style="margin-top:6px"><b>📄 素材来源：</b><a href="#materials" class="mat-jump" data-mid="${esc(v.materialId||'')}">${esc(v.material)} ↗</a></div>`:''}
         <div class="vw"><b>为什么有效：</b>${esc(v.why||'')}</div>
         ${v.style_hint?`<div class="vw" style="margin-top:6px"><b>🎨 爆款手法：</b>${esc(v.style_hint)}</div>`:''}
-        <button class="vgo" data-vi="${V.ideas.indexOf(v)}">用这个选题写草稿 →</button>
+        <div class="vactions">
+          <button class="vgo" data-vi="${V.ideas.indexOf(v)}">用这个选题写草稿 →</button>
+          <button class="vdel" data-del-id="${esc(v.id)}">🗑 删除</button>
+        </div>
       </div>`;
     };
     $('#vault-body').innerHTML=GROUPS.map(g=>{
