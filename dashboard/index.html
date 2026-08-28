@@ -1288,14 +1288,32 @@
     });
     $('#or-mat-run').onclick=()=>{
       if(!currentId) return say('#or-mat-msg','✗ 先选择一篇素材',false);
-      runAiJob('/api/oracle-from-material','#or-mat-msg',{materialId:currentId,model:$('#or-model').value});
+      runAiJob('/api/oracle-from-material','#or-mat-msg',{materialId:currentId,model:$('#or-model').value}, ()=>{
+        // 生成完成后：跳转到灵感库，定位并高亮新生成的素材选题
+        location.hash='vault';
+        route();
+        setTimeout(()=>{
+          const secs=document.querySelectorAll('#vault-body .vsection');
+          let target=null;
+          for(const sec of secs){
+            const t=sec.querySelector('.vsec-title');
+            if(t && t.textContent.includes('素材选题')){ target=sec.querySelector('.vcard'); break; }
+          }
+          if(target){
+            target.scrollIntoView({behavior:'smooth',block:'center'});
+            target.style.transition='box-shadow .3s';
+            target.style.boxShadow='0 0 0 3px #C6407A';
+            setTimeout(()=>{target.style.boxShadow='';},2500);
+          }
+        },200);
+      });
     };
   })();
 
 
   /* ══ Draft ══ */
-  // AI 任务：提交 → 轮询任务状态 → 完成后刷新页面
-  async function runAiJob(url,msgSel,body){
+  // AI 任务：提交 → 轮询任务状态 → 完成后局部刷新（不再 reload 跳板块）
+  async function runAiJob(url,msgSel,body,afterDone){
     const m=$(msgSel); m.textContent='提交中…';
     try{
       const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
@@ -1307,11 +1325,29 @@
           const jobs=await fetch('/api/jobs').then(x=>x.json());
           const job=jobs.find(x=>x.id===id); if(!job)return;
           m.textContent='任务 #'+id+'：'+job.status+'…（约 1-2 分钟）';
-          if(job.status==='完成'){ clearInterval(t); m.textContent='✓ 完成，正在刷新…'; setTimeout(()=>location.reload(),800); }
+          if(job.status==='完成'){ clearInterval(t); m.textContent='✓ 完成，正在刷新…'; await reloadData(); if(afterDone) await afterDone(); else route(); }
           if(job.status==='失败'){ clearInterval(t); m.textContent='✗ 失败——到「数据管理」页展开日志看原因'; }
         }catch(e){}
       },3000);
     }catch(e){ m.textContent='✗ 请求失败（服务器没起？跑 node scripts/serve.mjs）'; }
+  }
+  // 重新拉取 me.js/data.js 最新数据并更新到当前页面（不整页刷新，避免跳板块）
+  async function reloadData(){
+    try{
+      const grab=(t,name)=>{
+        const i=t.indexOf('window.'+name+'=');
+        if(i<0)return null;
+        let s=t.slice(t.indexOf('=',i)+1).trim().replace(/;?\s*$/,'');
+        try{return JSON.parse(s);}catch(e){return null;}
+      };
+      const [meT,scanT]=await Promise.all([
+        fetch('/me.js',{cache:'no-store'}).then(r=>r.text()),
+        fetch('/data.js',{cache:'no-store'}).then(r=>r.text()),
+      ]);
+      const me=grab(meT,'ME'), scan=grab(scanT,'SCAN');
+      if(me) Object.assign(window.ME,me);
+      if(scan) Object.assign(window.SCAN,scan);
+    }catch(e){}
   }
   $('#dr-gen').onclick=()=>{
     if(!window.__curIdea){ $('#dr-gen-msg').textContent='✗ 先在上方选择选题'; return; }
