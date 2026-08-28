@@ -480,7 +480,14 @@
     </div>
     <div class="panel" style="margin-bottom:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <label style="font-size:13px;color:var(--muted);flex-shrink:0">素材：</label>
-      <select id="or-mat" style="flex:1;min-width:420px;padding:8px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:var(--card);color:var(--ink)"></select>
+      <div id="or-mat-vsel" style="flex:1;min-width:420px;position:relative">
+        <button type="button" id="or-mat-trigger" style="width:100%;display:flex;justify-content:space-between;align-items:center;padding:8px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:var(--card);color:var(--ink);cursor:pointer;text-align:left;gap:10px;font-family:inherit">
+          <span id="or-mat-label" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">选择素材…</span>
+          <span style="color:var(--muted);font-size:11px">▾</span>
+        </button>
+        <ul id="or-mat-list" hidden style="position:absolute;top:calc(100% + 4px);left:0;right:0;margin:0;padding:4px 0;list-style:none;background:var(--card);border:1px solid var(--line);border-radius:10px;max-height:340px;overflow-y:auto;z-index:50;box-shadow:0 4px 12px rgba(0,0,0,.08);overflow-x:hidden">
+        </ul>
+      </div>
       <button class="btn" id="or-mat-run" style="flex-shrink:0">✨ 从这个素材生成选题</button>
       <span class="adm-msg" id="or-mat-msg"></span>
     </div>
@@ -1254,17 +1261,34 @@
     runAiJob('/api/oracle','#or-msg',{model:$('#or-model').value});
   };
 
-  /* ══ 从素材定向生成选题 ══ */
+  /* ══ 从素材定向生成选题（自定义下拉：避免原生 select dropdown 换行截断） ══ */
   (function(){
-    const sel=$('#or-mat');
-    if(!sel) return;
-    const list=(ME&&ME.materials)||[];
-    sel.innerHTML='<option value="">选择素材…</option>'+
-      list.map(m=>`<option value="${esc(m.id)}">${esc(m.title||m.id)}</option>`).join('');
+    const trigger=$('#or-mat-trigger');
+    const label=$('#or-mat-label');
+    const list=$('#or-mat-list');
+    if(!trigger || !label || !list) return;
+    const materials=(ME&&ME.materials)||[];
+    let currentId='';
+    list.innerHTML=materials.map(m=>{
+      const t=m.title||m.id;
+      return `<li data-id="${esc(m.id)}" data-title="${esc(t)}" style="padding:8px 12px;cursor:pointer;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(t)}</li>`;
+    }).join('');
+    list.onmouseover=e=>{const li=e.target.closest('li');if(li)li.style.background='var(--cream)';};
+    list.onmouseout=e=>{const li=e.target.closest('li');if(li)li.style.background='';};
+    list.onclick=e=>{
+      const li=e.target.closest('li');
+      if(!li)return;
+      currentId=li.dataset.id;
+      label.textContent=li.dataset.title;
+      list.hidden=true;
+    };
+    trigger.onclick=e=>{e.stopPropagation();list.hidden=!list.hidden;};
+    document.addEventListener('click',e=>{
+      if(!trigger.contains(e.target) && !list.contains(e.target)) list.hidden=true;
+    });
     $('#or-mat-run').onclick=()=>{
-      const mid=sel.value;
-      if(!mid) return say('#or-mat-msg','✗ 先选择一篇素材',false);
-      runAiJob('/api/oracle-from-material','#or-mat-msg',{materialId:mid,model:$('#or-model').value});
+      if(!currentId) return say('#or-mat-msg','✗ 先选择一篇素材',false);
+      runAiJob('/api/oracle-from-material','#or-mat-msg',{materialId:currentId,model:$('#or-model').value});
     };
   })();
 
