@@ -1155,7 +1155,8 @@
           .then(r=>r.json())
           .then(j=>{
             if(j.error){ alert('删除失败：'+j.error); del.disabled=false; del.textContent='🗑 删除'; return; }
-            setTimeout(()=>location.reload(),500);
+            if(SCAN&&SCAN.vault&&SCAN.vault.ideas){ SCAN.vault.ideas=SCAN.vault.ideas.filter(v=>v.id!==id); }
+            renderVault();
           })
           .catch(()=>{ alert('删除失败（服务器没起？）'); del.disabled=false; del.textContent='🗑 删除'; });
         return;
@@ -1350,7 +1351,12 @@
       del.disabled=true;
       fetch('/api/draft/'+encodeURIComponent(id),{method:'DELETE'})
         .then(r=>r.json())
-        .then(j=>{ if(j.error){ alert('删除失败：'+j.error); del.disabled=false; return; } setTimeout(()=>location.reload(),500); })
+        .then(j=>{
+          if(j.error){ alert('删除失败：'+j.error); del.disabled=false; return; }
+          if(ME&&ME.drafts) delete ME.drafts[id];
+          renderDraftHistory();
+          $('#draft-body').innerHTML='';
+        })
         .catch(()=>{ alert('删除失败（服务器没起？）'); del.disabled=false; });
       return;
     }
