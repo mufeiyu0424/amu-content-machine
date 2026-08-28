@@ -1373,7 +1373,13 @@
 
   function renderDraft(){
     const iid=window.__curIdea;
-    const d=(ME&&ME.drafts&&ME.drafts[iid])||null;
+    let d=(ME&&ME.drafts&&ME.drafts[iid])||null;
+    // 兜底：如果数据里没这条（可能是 me.js 旧缓存），主动 reloadData 后再渲染
+    if((!d||!d.text) && ME && (!ME.drafts || !ME.drafts[iid])){
+      reloadData().then(()=>renderDraft());
+      $('#draft-body').innerHTML=`<div class="empty-big"><b>正在同步最新数据…</b></div>`;
+      return;
+    }
     $('#dr-gen').textContent=(d&&d.text)?'🔄 重新生成草稿（DeepSeek）':'✨ AI 生成草稿（DeepSeek）';
     $('#dr-revise').style.display=(d&&d.text)?'':'none';
     $('#dr-revise-council').style.display=(d&&d.council&&d.council.length)?'':'none';
