@@ -1386,9 +1386,9 @@
   async function reloadData(){
     try{
       const grab=(t,name)=>{
-        const i=t.indexOf('window.'+name+'=');
-        if(i<0)return null;
-        let s=t.slice(t.indexOf('=',i)+1).trim().replace(/;?\s*$/,'');
+        const m=t.match(new RegExp('window\\.'+name+'\\s*=\\s*'));
+        if(!m)return null;
+        let s=t.slice(m.index+m[0].length).trim().replace(/;?\s*$/,'');
         try{return JSON.parse(s);}catch(e){return null;}
       };
       const [meT,scanT]=await Promise.all([
