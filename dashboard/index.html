@@ -1149,7 +1149,7 @@
     const matMap = new Map();
     matIdeas.forEach(v=>{
       const key = v.materialId || v.material || v.id;
-      if(!matMap.has(key)) matMap.set(key, { title: v.material || '素材', items: [] });
+      if(!matMap.has(key)) matMap.set(key, { title: v.material || '素材', materialId: v.materialId || '', items: [] });
       matMap.get(key).items.push(v);
     });
     const matGroups = [...matMap.values()];
