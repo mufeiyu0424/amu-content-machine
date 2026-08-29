@@ -1374,10 +1374,20 @@
   function renderDraft(){
     const iid=window.__curIdea;
     let d=(ME&&ME.drafts&&ME.drafts[iid])||null;
-    // 兜底：如果数据里没这条（可能是 me.js 旧缓存），主动 reloadData 后再渲染
-    if((!d||!d.text) && ME && (!ME.drafts || !ME.drafts[iid])){
-      reloadData().then(()=>renderDraft());
+    // 兜底：me.js 缓存过期导致当前选题草稿缺失。reloadData 一次后无论有无都用 flag 防止无限循环
+    if((!d||!d.text) && ME && !ME.drafts[iid]){
+      if(renderDraft._reloading){
+        // 已经重载过一次还是没数据 → 确实没写过草稿
+        $('#draft-body').innerHTML=`<div class="empty-big"><b>这个选题还没有草稿。</b><br>点上方「AI 生成草稿」开始写，或到「灵感库」换一个选题。</div>`;
+        renderDraft._reloading=false;
+        return;
+      }
+      renderDraft._reloading=true;
       $('#draft-body').innerHTML=`<div class="empty-big"><b>正在同步最新数据…</b></div>`;
+      reloadData().then(()=>{
+        renderDraft(); // 此时 _reloading=true，会走"没草稿"或正常渲染分支
+        renderDraft._reloading=false;
+      });
       return;
     }
     $('#dr-gen').textContent=(d&&d.text)?'🔄 重新生成草稿（DeepSeek）':'✨ AI 生成草稿（DeepSeek）';
