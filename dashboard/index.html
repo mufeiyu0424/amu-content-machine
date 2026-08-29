@@ -234,8 +234,11 @@
   @media(max-width:820px){.vgrid{grid-template-columns:1fr}}
   .matgroup{margin-bottom:20px}
   .matgroup:last-child{margin-bottom:0}
-  .matgroup-head{font-size:13px;font-weight:600;color:var(--ink);margin:0 0 11px;padding-left:9px;border-left:3px solid var(--sage);display:flex;align-items:center;gap:7px}
+  .matgroup-head{font-size:13px;font-weight:600;color:var(--ink);margin:0 0 11px;padding-left:9px;border-left:3px solid var(--sage);display:flex;align-items:center;justify-content:space-between;gap:7px}
+  .matgroup-head .mg-left{display:flex;align-items:center;gap:7px}
   .matgroup-head .mcount{font-size:11px;color:var(--muted);background:var(--cream);border:1px solid var(--line);border-radius:999px;padding:1px 8px}
+  .matgroup-del{font-size:11px;color:var(--muted);background:none;border:1px solid var(--line);border-radius:6px;padding:2px 9px;cursor:pointer;transition:color .15s,border-color .15s}
+  .matgroup-del:hover{color:#c0392b;border-color:#c0392b}
   .vcard{background:var(--card);border-radius:16px;padding:18px;position:relative}
   .vcard .vrank{position:absolute;top:16px;right:16px;font-size:11px;color:var(--muted)}
   .vtype{display:inline-block;font-size:11px;padding:3px 9px;border-radius:999px;margin-bottom:9px}
@@ -1170,7 +1173,10 @@
         <div class="vsec-head"><span class="vsec-title">📚 指定素材选题</span><span class="vsec-count">${matIdeas.length} 条</span><span class="vsec-desc">基于素材库观点生成的选题</span></div>
         ${matGroups.map(g=>`
           <div class="matgroup">
-            <div class="matgroup-head">📄 ${esc(g.title)}<span class="mcount">${g.items.length} 条</span></div>
+            <div class="matgroup-head">
+              <div class="mg-left">📄 ${esc(g.title)}<span class="mcount">${g.items.length} 条</span></div>
+              <button class="matgroup-del" data-mat-id="${esc(g.materialId)}" data-mat-title="${esc(g.title)}" data-count="${g.items.length}">🗑 删除该素材全部</button>
+            </div>
             <div class="vgrid">${g.items.map(card).join('')}</div>
           </div>
         `).join('')}
@@ -1179,6 +1185,23 @@
     $('#vault-body').innerHTML = vaultHtml;
     $('#vault-body').addEventListener('click',e=>{
       const mj=e.target.closest('.mat-jump');if(mj){ e.preventDefault(); jumpToMaterial(mj.dataset.mid); return; }
+      const mgDel=e.target.closest('.matgroup-del');
+      if(mgDel){ e.stopPropagation();
+        const id=mgDel.dataset.matId;
+        const title=mgDel.dataset.matTitle;
+        const count=mgDel.dataset.count;
+        if(!confirm(`确定删除素材「${title}」的全部 ${count} 条选题吗？\n（已写草稿会保留为历史草稿，不会丢）`)) return;
+        mgDel.disabled=true; mgDel.textContent='删除中…';
+        fetch('/api/idea/by-material/'+encodeURIComponent(id||title),{method:'DELETE'})
+          .then(r=>r.json())
+          .then(j=>{
+            if(j.error){ alert('删除失败：'+j.error); mgDel.disabled=false; mgDel.textContent='🗑 删除该素材全部'; return; }
+            if(SCAN&&SCAN.vault&&SCAN.vault.ideas){ SCAN.vault.ideas=SCAN.vault.ideas.filter(v=>v.materialId!==id && v.material!==title); }
+            renderVault();
+          })
+          .catch(()=>{ alert('删除失败（服务器没起？）'); mgDel.disabled=false; mgDel.textContent='🗑 删除该素材全部'; });
+        return;
+      }
       const del=e.target.closest('.vdel');
       if(del){ e.stopPropagation();
         const id=del.dataset.delId;
