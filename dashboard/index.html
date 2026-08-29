@@ -232,6 +232,10 @@
   @media(max-width:600px){.vsec-desc{display:none}}
   .vgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
   @media(max-width:820px){.vgrid{grid-template-columns:1fr}}
+  .matgroup{margin-bottom:20px}
+  .matgroup:last-child{margin-bottom:0}
+  .matgroup-head{font-size:13px;font-weight:600;color:var(--ink);margin:0 0 11px;padding-left:9px;border-left:3px solid var(--sage);display:flex;align-items:center;gap:7px}
+  .matgroup-head .mcount{font-size:11px;color:var(--muted);background:var(--cream);border:1px solid var(--line);border-radius:999px;padding:1px 8px}
   .vcard{background:var(--card);border-radius:16px;padding:18px;position:relative}
   .vcard .vrank{position:absolute;top:16px;right:16px;font-size:11px;color:var(--muted)}
   .vtype{display:inline-block;font-size:11px;padding:3px 9px;border-radius:999px;margin-bottom:9px}
@@ -1116,11 +1120,6 @@
   function renderVault(){
     const V=SCAN&&SCAN.vault;
     if(!V||!V.ideas||!V.ideas.length){$('#vault-body').innerHTML='<div class="empty-big"><b>灵感库生成中…</b><br>Oracle 正在综合赛道全景 + 你的内容分析生成选题。</div>';return;}
-    // group by source, fixed order: 🎯赛道 → 📚指定素材
-    const GROUPS=[
-      {key:'track',   label:'🎯 赛道选题', desc:'来自 Oracle 赛道分析'},
-      {key:'素材',   label:'📚 指定素材选题', desc:'基于素材库观点生成的选题'},
-    ];
     const groupOf=v=>(v.source==='素材'||v.source==='material')?'素材':'track';
     const card=(v)=>{
       const ever=String(v.type||'').includes('常青');
@@ -1141,14 +1140,43 @@
         </div>
       </div>`;
     };
-    $('#vault-body').innerHTML=GROUPS.map(g=>{
-      const items=V.ideas.filter(v=>groupOf(v)===g.key).sort((a,b)=>(b.score||0)-(a.score||0));
-      if(!items.length)return '';
-      return `<div class="vsection">
-        <div class="vsec-head"><span class="vsec-title">${g.label}</span><span class="vsec-count">${items.length} 条</span><span class="vsec-desc">${g.desc}</span></div>
-        <div class="vgrid">${items.map(card).join('')}</div>
+    // 赛道选题：按分数排序；素材选题：按素材分组（同一素材连在一起，组内按分数，组间最新素材在前）
+    const trackIdeas = V.ideas.filter(v=>groupOf(v)==='track').sort((a,b)=>(b.score||0)-(a.score||0));
+    const matIdeas = V.ideas.filter(v=>groupOf(v)==='素材');
+    const matMap = new Map();
+    matIdeas.forEach(v=>{
+      const key = v.materialId || v.material || v.id;
+      if(!matMap.has(key)) matMap.set(key, { title: v.material || '素材', items: [] });
+      matMap.get(key).items.push(v);
+    });
+    const matGroups = [...matMap.values()];
+    matGroups.forEach(g=>g.items.sort((a,b)=>(b.score||0)-(a.score||0)));
+    const tsOf = id => { const m = String(id).match(/v(\d{14})/); return m ? +m[1] : 0; };
+    matGroups.sort((a,b)=>{
+      const ta = Math.max(...a.items.map(v=>tsOf(v.id)));
+      const tb = Math.max(...b.items.map(v=>tsOf(v.id)));
+      return tb - ta;
+    });
+
+    let vaultHtml = '';
+    if(trackIdeas.length){
+      vaultHtml += `<div class="vsection">
+        <div class="vsec-head"><span class="vsec-title">🎯 赛道选题</span><span class="vsec-count">${trackIdeas.length} 条</span><span class="vsec-desc">来自 Oracle 赛道分析</span></div>
+        <div class="vgrid">${trackIdeas.map(card).join('')}</div>
       </div>`;
-    }).join('');
+    }
+    if(matGroups.length){
+      vaultHtml += `<div class="vsection">
+        <div class="vsec-head"><span class="vsec-title">📚 指定素材选题</span><span class="vsec-count">${matIdeas.length} 条</span><span class="vsec-desc">基于素材库观点生成的选题</span></div>
+        ${matGroups.map(g=>`
+          <div class="matgroup">
+            <div class="matgroup-head">📄 ${esc(g.title)}<span class="mcount">${g.items.length} 条</span></div>
+            <div class="vgrid">${g.items.map(card).join('')}</div>
+          </div>
+        `).join('')}
+      </div>`;
+    }
+    $('#vault-body').innerHTML = vaultHtml;
     $('#vault-body').addEventListener('click',e=>{
       const mj=e.target.closest('.mat-jump');if(mj){ e.preventDefault(); jumpToMaterial(mj.dataset.mid); return; }
       const del=e.target.closest('.vdel');
