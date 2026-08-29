@@ -1325,7 +1325,7 @@
           const jobs=await fetch('/api/jobs').then(x=>x.json());
           const job=jobs.find(x=>x.id===id); if(!job)return;
           m.textContent='任务 #'+id+'：'+job.status+'…（约 1-2 分钟）';
-          if(job.status==='完成'){ clearInterval(t); m.textContent='✓ 完成，正在刷新…'; await reloadData(); if(afterDone) await afterDone(); else route(); }
+          if(job.status==='完成'){ clearInterval(t); m.textContent='✓ 完成'; await reloadData(); if(afterDone) await afterDone(); else route(); }
           if(job.status==='失败'){ clearInterval(t); m.textContent='✗ 失败——到「数据管理」页展开日志看原因'; }
         }catch(e){}
       },3000);
