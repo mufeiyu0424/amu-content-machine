@@ -1312,7 +1312,7 @@
 
   $('#or-run').onclick=()=>{
     if(!confirm('⚠️ 重新生成会覆盖现有全部选题（赛道 + 素材），旧选题将被替换。\n草稿仍会保留在「历史草稿」里，不会丢失。\n\n确定重新生成吗？')) return;
-    runAiJob('/api/oracle','#or-msg',{model:$('#or-model').value});
+    runAiJob('/api/oracle','#or-msg',{model:$('#or-model').value},null,$('#or-run'));
   };
 
   /* ══ 从素材定向生成选题（自定义下拉：避免原生 select dropdown 换行截断） ══ */
@@ -1351,8 +1351,7 @@
           let target=null;
           for(const sec of secs){
             const t=sec.querySelector('.vsec-title');
-            if(t && t.textContent.includes('素材选题')){ target=sec.querySelector('.vcard'); break; }
-          }
+            if(t && t.textContent.includes('素材选题')){ target=sec.querySelector('.vcard'); break; }          }
           if(target){
             target.scrollIntoView({behavior:'smooth',block:'center'});
             target.style.transition='box-shadow .3s';
@@ -1360,44 +1359,53 @@
             setTimeout(()=>{target.style.boxShadow='';},2500);
           }
         },200);
-      });
+      }, $('#or-mat-run'));
     };
   })();
 
 
   /* ══ Draft ══ */
   // AI 任务：提交 → 轮询任务状态 → 完成后局部刷新（不再 reload 跳板块）
-  async function runAiJob(url,msgSel,body,afterDone){
+  async function runAiJob(url,msgSel,body,afterDone,btn){
     const m=$(msgSel); m.textContent='提交中…';
+    // 把传入的按钮变成「⏹ 停止任务」——无任务时一个按钮，跑任务时同一个按钮变两态
+    const restoreBtn=btn&&(function(){
+      const orig={text:btn.textContent, bg:btn.style.background, color:btn.style.color, cls:btn.className};
+      btn.textContent='⏹ 停止任务';
+      btn.style.background='#c0392b'; btn.style.color='#fff'; btn.style.borderColor='#c0392b';
+      btn.disabled=false;
+      return ()=>{ btn.textContent=orig.text; btn.style.background=orig.bg; btn.style.color=orig.color; btn.style.borderColor=''; btn.className=orig.cls; btn.disabled=false; };
+    })();
+    const stopHandler=()=>{
+      if(!currentJobId) return;
+      fetch('/api/job-stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jobId:currentJobId})})
+        .catch(()=>{ m.textContent='停止失败'; });
+    };
+    if(btn) btn.onclick=stopHandler;
+
+    let currentJobId=null;
     try{
       const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
       const j=await r.json();
-      if(j.error){ m.textContent='✗ '+j.error; return; }
-      const id=j.id; m.textContent='任务 #'+id+' 已加入队列…';
-      // 停止按钮：误点可终止，省 token
-      const stopBtn=document.createElement('button');
-      stopBtn.className='job-stop'; stopBtn.type='button'; stopBtn.textContent='⏹ 停止';
-      stopBtn.onclick=()=>{
-        stopBtn.disabled=true; stopBtn.textContent='停止中…';
-        fetch('/api/job-stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jobId:id})})
-          .catch(()=>{ m.textContent='停止失败'; stopBtn.disabled=false; stopBtn.textContent='⏹ 停止'; });
-      };
-      m.insertAdjacentElement('afterend', stopBtn);
+      if(j.error){ m.textContent='✗ '+j.error; if(restoreBtn)restoreBtn(); if(btn)btn.onclick=null; return; }
+      currentJobId=j.id; m.textContent='任务 #'+j.id+' 已加入队列…';
       const t=setInterval(async()=>{
         try{
           const jobs=await fetch('/api/jobs').then(x=>x.json());
-          const job=jobs.find(x=>x.id===id); if(!job)return;
-          m.textContent='任务 #'+id+'：'+job.status+'…（约 1-2 分钟）';
+          const job=jobs.find(x=>x.id===currentJobId); if(!job)return;
+          if(job.status==='排队') m.textContent='任务 #'+currentJobId+'：排队中…';
+          else if(job.status==='运行') m.textContent='任务 #'+currentJobId+'：运行中…';
+          else m.textContent='任务 #'+currentJobId+'：'+job.status+'…';
           if(job.status==='完成' || job.status==='失败' || job.status==='已停止'){
             clearInterval(t);
-            if(stopBtn.parentNode) stopBtn.remove();
+            if(restoreBtn)restoreBtn(); if(btn)btn.onclick=null;
             if(job.status==='完成'){ m.textContent='✓ 完成'; await reloadData(); if(afterDone) await afterDone(); else route(); }
             else if(job.status==='失败'){ m.textContent='✗ 失败——到「数据管理」页展开日志看原因'; }
             else { m.textContent='⏹ 已停止'; }
           }
         }catch(e){}
       },3000);
-    }catch(e){ m.textContent='✗ 请求失败（服务器没起？跑 node scripts/serve.mjs）'; }
+    }catch(e){ m.textContent='✗ 请求失败（服务器没起？跑 node scripts/serve.mjs）'; if(restoreBtn)restoreBtn(); if(btn)btn.onclick=null; }
   }
   // 重新拉取 me.js/data.js 最新数据并更新到当前页面（不整页刷新，避免跳板块）
   async function reloadData(){
@@ -1419,13 +1427,13 @@
   }
   $('#dr-gen').onclick=()=>{
     if(!window.__curIdea){ $('#dr-gen-msg').textContent='✗ 先在上方选择选题'; return; }
-    runAiJob('/api/draft','#dr-gen-msg',{ideaId:window.__curIdea,model:$('#dr-model').value,blogger:$('#dr-blogger').value});
+    runAiJob('/api/draft','#dr-gen-msg',{ideaId:window.__curIdea,model:$('#dr-model').value,blogger:$('#dr-blogger').value}, null, $('#dr-gen'));
   };
   $('#dr-revise-btn').onclick=()=>{
     const fb=$('#dr-feedback').value.trim();
     if(!fb){ $('#dr-revise-msg').textContent='✗ 先写点修改意见'; return; }
     if(!window.__curIdea){ $('#dr-revise-msg').textContent='✗ 先在上方选择选题'; return; }
-    runAiJob('/api/revise','#dr-revise-msg',{ideaId:window.__curIdea,feedback:fb,model:$('#dr-model').value});
+    runAiJob('/api/revise','#dr-revise-msg',{ideaId:window.__curIdea,feedback:fb,model:$('#dr-model').value}, null, $('#dr-revise-btn'));
   };
   $('#dr-revise-council').onclick=()=>{
     const d=(ME&&ME.drafts&&ME.drafts[window.__curIdea])||{};
@@ -1436,7 +1444,7 @@
     }).filter(Boolean).join('\n\n');
     const fb='请逐条落实以下评审团意见（没被点名的部分保持原样）：\n\n'+items;
     $('#dr-feedback').value=fb;
-    runAiJob('/api/revise','#dr-revise-msg',{ideaId:window.__curIdea,feedback:fb,model:$('#dr-model').value});
+    runAiJob('/api/revise','#dr-revise-msg',{ideaId:window.__curIdea,feedback:fb,model:$('#dr-model').value}, null, $('#dr-revise-council'));
   };
 
   function renderDraft(){
@@ -1513,7 +1521,7 @@
     if(!window.__curIdea){ $('#cc-run-msg').textContent='✗ 先在上方选择选题'; return; }
     const d=(ME&&ME.drafts&&ME.drafts[window.__curIdea])||{};
     if(!d.text){ $('#cc-run-msg').textContent='✗ 这个选题还没有草稿——先到「草稿」页生成'; return; }
-    runAiJob('/api/council','#cc-run-msg',{ideaId:window.__curIdea,model:$('#cc-model').value});
+    runAiJob('/api/council','#cc-run-msg',{ideaId:window.__curIdea,model:$('#cc-model').value}, null, $('#cc-run'));
   };
 
   function renderCouncil(){
