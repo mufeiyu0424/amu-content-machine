@@ -321,6 +321,9 @@
   .job-stop{font:inherit;font-size:12px;color:#c0392b;background:none;border:1px solid #c0392b;border-radius:999px;padding:3px 12px;cursor:pointer;margin-left:6px}
   .job-stop:hover{background:#c0392b;color:#fff}
   .job-stop:disabled{opacity:.5;cursor:default}
+  .stop-mini{font:inherit;font-size:12px;padding:6px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--muted);cursor:not-allowed;opacity:.55;transition:all .15s}
+  .stop-mini:not(:disabled){background:#c0392b;color:#fff;border-color:#c0392b;cursor:pointer;opacity:1}
+  .stop-mini:not(:disabled):hover{background:#a93226}
   .adm-job{border-top:1px solid var(--line);padding:10px 0;font-size:13px}
   .adm-job:first-child{border-top:0}
   .adm-job .jl{display:flex;justify-content:space-between;gap:10px}
@@ -484,6 +487,7 @@
       <p class="sub">三源合一：你的账号内容 + 小红书创作者爆款 + 小红书 素材库，借鉴爆款的写作方式/结构/情绪生成选题。</p></div>
     <div class="panel" style="margin-bottom:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
       <button class="btn" id="or-run">🔄 重新生成灵感库</button>
+      <button class="stop-mini" id="or-run-stop" type="button" disabled>⏹ 停止</button>
       <label style="font-size:13px;color:var(--muted)">模型：</label>
       <select id="or-model" style="padding:8px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:var(--card);color:var(--ink)"></select>
       <span class="adm-msg" id="or-msg"></span>
@@ -499,6 +503,7 @@
         </ul>
       </div>
       <button class="btn" id="or-mat-run" style="flex-shrink:0">✨ 从这个素材生成选题</button>
+      <button class="stop-mini" id="or-mat-run-stop" type="button" disabled>⏹ 停止</button>
       <span class="adm-msg" id="or-mat-msg"></span>
     </div>
     <div id="vault-body"></div>
@@ -517,6 +522,7 @@
         <label style="font-size:13px;color:var(--muted)">借鉴博主：</label>
         <select id="dr-blogger" style="padding:8px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:var(--card);color:var(--ink)"></select>
         <button class="btn" id="dr-gen">✨ AI 生成草稿</button>
+        <button class="stop-mini" id="dr-gen-stop" type="button" disabled>⏹ 停止</button>
         <span class="adm-msg" id="dr-gen-msg"></span>
       </div>
       <div id="dr-revise" style="display:none;margin-top:12px">
@@ -524,7 +530,9 @@
           style="width:100%;min-height:64px;padding:10px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:var(--card);color:var(--ink);resize:vertical;box-sizing:border-box"></textarea>
         <div style="display:flex;gap:10px;align-items:center;margin-top:8px;flex-wrap:wrap">
           <button class="btn" id="dr-revise-btn">✏️ 按意见修改</button>
+          <button class="stop-mini" id="dr-revise-btn-stop" type="button" disabled>⏹ 停止</button>
           <button class="btn" id="dr-revise-council" style="display:none">📋 一键按评审团意见修改</button>
+          <button class="stop-mini" id="dr-revise-council-stop" type="button" disabled>⏹ 停止</button>
           <span class="adm-msg" id="dr-revise-msg"></span>
         </div>
       </div>
@@ -547,6 +555,7 @@
         <label style="font-size:13px;color:var(--muted)">模型：</label>
         <select id="cc-model" style="padding:8px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:var(--card);color:var(--ink)"></select>
         <button class="btn" id="cc-run">⭐ 开始评审</button>
+        <button class="stop-mini" id="cc-run-stop" type="button" disabled>⏹ 停止</button>
         <span class="adm-msg" id="cc-run-msg"></span>
       </div>
     </div>
@@ -1312,7 +1321,7 @@
 
   $('#or-run').onclick=()=>{
     if(!confirm('⚠️ 重新生成会覆盖现有全部选题（赛道 + 素材），旧选题将被替换。\n草稿仍会保留在「历史草稿」里，不会丢失。\n\n确定重新生成吗？')) return;
-    runAiJob('/api/oracle','#or-msg',{model:$('#or-model').value},null,$('#or-run'));
+    runAiJob('/api/oracle','#or-msg',{model:$('#or-model').value},null,$('#or-run-stop'));
   };
 
   /* ══ 从素材定向生成选题（自定义下拉：避免原生 select dropdown 换行截断） ══ */
@@ -1359,35 +1368,31 @@
             setTimeout(()=>{target.style.boxShadow='';},2500);
           }
         },200);
-      }, $('#or-mat-run'));
+      }, $('#or-mat-run-stop'));
     };
   })();
 
 
   /* ══ Draft ══ */
   // AI 任务：提交 → 轮询任务状态 → 完成后局部刷新（不再 reload 跳板块）
-  async function runAiJob(url,msgSel,body,afterDone,btn){
+  async function runAiJob(url,msgSel,body,afterDone,stopBtn){
     const m=$(msgSel); m.textContent='提交中…';
-    // 把传入的按钮变成「⏹ 停止任务」——无任务时一个按钮，跑任务时同一个按钮变两态
-    const restoreBtn=btn&&(function(){
-      const orig={text:btn.textContent, bg:btn.style.background, color:btn.style.color, cls:btn.className};
-      btn.textContent='⏹ 停止任务';
-      btn.style.background='#c0392b'; btn.style.color='#fff'; btn.style.borderColor='#c0392b';
-      btn.disabled=false;
-      return ()=>{ btn.textContent=orig.text; btn.style.background=orig.bg; btn.style.color=orig.color; btn.style.borderColor=''; btn.className=orig.cls; btn.disabled=false; };
-    })();
-    const stopHandler=()=>{
-      if(!currentJobId) return;
-      fetch('/api/job-stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jobId:currentJobId})})
-        .catch(()=>{ m.textContent='停止失败'; });
-    };
-    if(btn) btn.onclick=stopHandler;
-
     let currentJobId=null;
+    // 点亮独立停止按钮（变红可点），绑定停止动作
+    if(stopBtn){
+      stopBtn.disabled=false;
+      stopBtn.onclick=()=>{
+        if(!currentJobId) return;
+        stopBtn.disabled=true; stopBtn.textContent='停止中…';
+        fetch('/api/job-stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jobId:currentJobId})})
+          .catch(()=>{ m.textContent='停止失败'; stopBtn.disabled=false; stopBtn.textContent='⏹ 停止'; });
+      };
+    }
+    const resetStop=()=>{ if(stopBtn){ stopBtn.disabled=true; stopBtn.textContent='⏹ 停止'; stopBtn.onclick=null; } };
     try{
       const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body||{})});
       const j=await r.json();
-      if(j.error){ m.textContent='✗ '+j.error; if(restoreBtn)restoreBtn(); if(btn)btn.onclick=null; return; }
+      if(j.error){ m.textContent='✗ '+j.error; resetStop(); return; }
       currentJobId=j.id; m.textContent='任务 #'+j.id+' 已加入队列…';
       const t=setInterval(async()=>{
         try{
@@ -1398,14 +1403,14 @@
           else m.textContent='任务 #'+currentJobId+'：'+job.status+'…';
           if(job.status==='完成' || job.status==='失败' || job.status==='已停止'){
             clearInterval(t);
-            if(restoreBtn)restoreBtn(); if(btn)btn.onclick=null;
+            resetStop();
             if(job.status==='完成'){ m.textContent='✓ 完成'; await reloadData(); if(afterDone) await afterDone(); else route(); }
             else if(job.status==='失败'){ m.textContent='✗ 失败——到「数据管理」页展开日志看原因'; }
             else { m.textContent='⏹ 已停止'; }
           }
         }catch(e){}
       },3000);
-    }catch(e){ m.textContent='✗ 请求失败（服务器没起？跑 node scripts/serve.mjs）'; if(restoreBtn)restoreBtn(); if(btn)btn.onclick=null; }
+    }catch(e){ m.textContent='✗ 请求失败（服务器没起？跑 node scripts/serve.mjs）'; resetStop(); }
   }
   // 重新拉取 me.js/data.js 最新数据并更新到当前页面（不整页刷新，避免跳板块）
   async function reloadData(){
@@ -1427,13 +1432,13 @@
   }
   $('#dr-gen').onclick=()=>{
     if(!window.__curIdea){ $('#dr-gen-msg').textContent='✗ 先在上方选择选题'; return; }
-    runAiJob('/api/draft','#dr-gen-msg',{ideaId:window.__curIdea,model:$('#dr-model').value,blogger:$('#dr-blogger').value}, null, $('#dr-gen'));
+    runAiJob('/api/draft','#dr-gen-msg',{ideaId:window.__curIdea,model:$('#dr-model').value,blogger:$('#dr-blogger').value}, null, $('#dr-gen-stop'));
   };
   $('#dr-revise-btn').onclick=()=>{
     const fb=$('#dr-feedback').value.trim();
     if(!fb){ $('#dr-revise-msg').textContent='✗ 先写点修改意见'; return; }
     if(!window.__curIdea){ $('#dr-revise-msg').textContent='✗ 先在上方选择选题'; return; }
-    runAiJob('/api/revise','#dr-revise-msg',{ideaId:window.__curIdea,feedback:fb,model:$('#dr-model').value}, null, $('#dr-revise-btn'));
+    runAiJob('/api/revise','#dr-revise-msg',{ideaId:window.__curIdea,feedback:fb,model:$('#dr-model').value}, null, $('#dr-revise-btn-stop'));
   };
   $('#dr-revise-council').onclick=()=>{
     const d=(ME&&ME.drafts&&ME.drafts[window.__curIdea])||{};
@@ -1444,7 +1449,7 @@
     }).filter(Boolean).join('\n\n');
     const fb='请逐条落实以下评审团意见（没被点名的部分保持原样）：\n\n'+items;
     $('#dr-feedback').value=fb;
-    runAiJob('/api/revise','#dr-revise-msg',{ideaId:window.__curIdea,feedback:fb,model:$('#dr-model').value}, null, $('#dr-revise-council'));
+    runAiJob('/api/revise','#dr-revise-msg',{ideaId:window.__curIdea,feedback:fb,model:$('#dr-model').value}, null, $('#dr-revise-council-stop'));
   };
 
   function renderDraft(){
@@ -1521,7 +1526,7 @@
     if(!window.__curIdea){ $('#cc-run-msg').textContent='✗ 先在上方选择选题'; return; }
     const d=(ME&&ME.drafts&&ME.drafts[window.__curIdea])||{};
     if(!d.text){ $('#cc-run-msg').textContent='✗ 这个选题还没有草稿——先到「草稿」页生成'; return; }
-    runAiJob('/api/council','#cc-run-msg',{ideaId:window.__curIdea,model:$('#cc-model').value}, null, $('#cc-run'));
+    runAiJob('/api/council','#cc-run-msg',{ideaId:window.__curIdea,model:$('#cc-model').value}, null, $('#cc-run-stop'));
   };
 
   function renderCouncil(){
