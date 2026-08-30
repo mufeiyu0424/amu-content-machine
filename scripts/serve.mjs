@@ -95,14 +95,16 @@ function pump() {
   const { job, steps } = next;
   job.status = '运行中';
   const runStep = i => {
-    if (i >= steps.length) { job.status = '完成'; jobRunning = false; pump(); return; }
+    if (i >= steps.length) { job.status = '完成'; job.cp = null; jobRunning = false; pump(); return; }
     const [script, ...args] = steps[i];
     job.log += `\n$ node ${script} ${args.join(' ')}\n`;
     const cp = spawn(NODE, [path.join(root, 'scripts', script), ...args], { cwd: root });
+    job.cp = cp;
     cp.stdout.on('data', d => { job.log += d; if (job.log.length > 20000) job.log = job.log.slice(-20000); });
     cp.stderr.on('data', d => { job.log += d; if (job.log.length > 20000) job.log = job.log.slice(-20000); });
     cp.on('close', code => {
-      if (code !== 0) { job.status = '失败'; job.log += `\n✗ 步骤退出码 ${code}`; jobRunning = false; pump(); return; }
+      if (job.status === '已停止') { job.cp = null; jobRunning = false; pump(); return; }
+      if (code !== 0) { job.status = '失败'; job.cp = null; job.log += `\n✗ 步骤退出码 ${code}`; jobRunning = false; pump(); return; }
       runStep(i + 1);
     });
   };
@@ -205,6 +207,22 @@ async function api(req, res) {
   }
   if (req.method !== 'POST') return send(405, { error: 'method not allowed' });
   const body = await readBody(req);
+
+  if (req.url.startsWith('/api/job-stop')) {
+    const jobId = +body.jobId;
+    const job = jobs.find(j => j.id === jobId);
+    if (!job) return send(404, { error: '任务不存在' });
+    if (job.status === '完成' || job.status === '失败' || job.status === '已停止') {
+      return send(200, { ok: true, status: job.status });
+    }
+    // 若还在排队，直接从队列移除；若在运行，杀进程
+    const qi = jobQueue.findIndex(x => x.job.id === jobId);
+    if (qi >= 0) jobQueue.splice(qi, 1);
+    job.status = '已停止';
+    job.log += '\n⛔ 用户手动停止';
+    if (job.cp) { try { job.cp.kill('SIGTERM'); } catch {} }
+    return send(200, { ok: true, status: '已停止' });
+  }
 
   if (req.url.startsWith('/api/refresh_me')) {
     const id = myUserId();

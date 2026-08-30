@@ -318,6 +318,9 @@
   .adm-row input[type=text],.adm-row input[type=number]{font:inherit;font-size:13px;border:1px solid var(--line);background:var(--cream);border-radius:10px;padding:8px 12px;flex:1;min-width:120px}
   .adm-row input[type=number]{flex:0 0 auto}
   .adm-msg{font-size:12.5px;margin-left:10px}
+  .job-stop{font:inherit;font-size:12px;color:#c0392b;background:none;border:1px solid #c0392b;border-radius:999px;padding:3px 12px;cursor:pointer;margin-left:6px}
+  .job-stop:hover{background:#c0392b;color:#fff}
+  .job-stop:disabled{opacity:.5;cursor:default}
   .adm-job{border-top:1px solid var(--line);padding:10px 0;font-size:13px}
   .adm-job:first-child{border-top:0}
   .adm-job .jl{display:flex;justify-content:space-between;gap:10px}
@@ -1371,13 +1374,27 @@
       const j=await r.json();
       if(j.error){ m.textContent='✗ '+j.error; return; }
       const id=j.id; m.textContent='任务 #'+id+' 已加入队列…';
+      // 停止按钮：误点可终止，省 token
+      const stopBtn=document.createElement('button');
+      stopBtn.className='job-stop'; stopBtn.type='button'; stopBtn.textContent='⏹ 停止';
+      stopBtn.onclick=()=>{
+        stopBtn.disabled=true; stopBtn.textContent='停止中…';
+        fetch('/api/job-stop',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jobId:id})})
+          .catch(()=>{ m.textContent='停止失败'; stopBtn.disabled=false; stopBtn.textContent='⏹ 停止'; });
+      };
+      m.insertAdjacentElement('afterend', stopBtn);
       const t=setInterval(async()=>{
         try{
           const jobs=await fetch('/api/jobs').then(x=>x.json());
           const job=jobs.find(x=>x.id===id); if(!job)return;
           m.textContent='任务 #'+id+'：'+job.status+'…（约 1-2 分钟）';
-          if(job.status==='完成'){ clearInterval(t); m.textContent='✓ 完成'; await reloadData(); if(afterDone) await afterDone(); else route(); }
-          if(job.status==='失败'){ clearInterval(t); m.textContent='✗ 失败——到「数据管理」页展开日志看原因'; }
+          if(job.status==='完成' || job.status==='失败' || job.status==='已停止'){
+            clearInterval(t);
+            if(stopBtn.parentNode) stopBtn.remove();
+            if(job.status==='完成'){ m.textContent='✓ 完成'; await reloadData(); if(afterDone) await afterDone(); else route(); }
+            else if(job.status==='失败'){ m.textContent='✗ 失败——到「数据管理」页展开日志看原因'; }
+            else { m.textContent='⏹ 已停止'; }
+          }
         }catch(e){}
       },3000);
     }catch(e){ m.textContent='✗ 请求失败（服务器没起？跑 node scripts/serve.mjs）'; }
