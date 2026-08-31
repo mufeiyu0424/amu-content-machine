@@ -1057,6 +1057,7 @@
       // 进入草稿/评审团时，把下拉同步到当前选中的选题（跨板块联动）
       if(view==='draft'){ fillIdeaSelect($('#dr-idea'),'选择选题…'); fillBloggerSelect(); renderDraft(); renderDraftHistory(); }
       if(view==='council'){ fillCouncilDraftSelect(); renderCouncil(); }
+      if(view==='vault'){ renderVault(); }
     }
     window.addEventListener('hashchange',route);
     // open-cr links set the hash instead of calling directly
