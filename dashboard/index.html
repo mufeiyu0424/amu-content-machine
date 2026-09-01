@@ -1456,19 +1456,26 @@
   function renderDraft(){
     const iid=window.__curIdea;
     let d=(ME&&ME.drafts&&ME.drafts[iid])||null;
-    // 兜底：me.js 缓存过期导致当前选题草稿缺失。reloadData 一次后无论有无都用 flag 防止无限循环
+    renderDraft._seq=(renderDraft._seq||0)+1;
+    const seq=renderDraft._seq;
+    // 当前选题没草稿 → 尝试同步一次最新数据（可能 me.js 缓存过期）
     if((!d||!d.text) && ME && !ME.drafts[iid]){
-      if(renderDraft._reloading){
-        // 已经重载过一次还是没数据 → 确实没写过草稿
-        $('#draft-body').innerHTML=`<div class="empty-big"><b>这个选题还没有草稿。</b><br>点上方「AI 生成草稿」开始写，或到「灵感库」换一个选题。</div>`;
-        renderDraft._reloading=false;
-        return;
-      }
-      renderDraft._reloading=true;
       $('#draft-body').innerHTML=`<div class="empty-big"><b>正在同步最新数据…</b></div>`;
       reloadData().then(()=>{
-        renderDraft(); // 此时 _reloading=true，会走"没草稿"或正常渲染分支
-        renderDraft._reloading=false;
+        if(seq!==renderDraft._seq) return; // 期间点开了历史草稿或切了选题，放弃本次
+        const dd=(ME&&ME.drafts&&ME.drafts[iid])||null;
+        if(dd&&dd.text){
+          $('#dr-gen').textContent='🔄 重新生成草稿（DeepSeek）';
+          $('#dr-revise').style.display='';
+          $('#dr-revise-council').style.display=(dd.council&&dd.council.length)?'':'none';
+          const ver=dd.version?`<span style="font-size:11px;color:var(--muted);margin-left:8px">${esc(dd.version)}</span>`:'';
+          $('#draft-body').innerHTML=`<div class="draftbox"><h3>选题：${esc(dd.idea||iid)}${ver}</h3>${esc(dd.text||'')}</div>`;
+        }else{
+          $('#dr-gen').textContent='✨ AI 生成草稿（DeepSeek）';
+          $('#dr-revise').style.display='none';
+          $('#dr-revise-council').style.display='none';
+          $('#draft-body').innerHTML=`<div class="empty-big"><b>这个选题还没有草稿。</b><br>点上方「AI 生成草稿」开始写，或到「灵感库」换一个选题。</div>`;
+        }
       });
       return;
     }
@@ -1493,6 +1500,7 @@
     }).join('');
   }
   function showDraftById(id){
+    renderDraft._seq=(renderDraft._seq||0)+1; // 使进行中的 renderDraft 兜底失效，避免覆盖历史草稿
     const d=(ME&&ME.drafts&&ME.drafts[id])||null;
     if(!d||!d.text){$('#draft-body').innerHTML=`<div class="empty-big"><b>这篇草稿没有内容。</b></div>`;return;}
     const ver=d.version?`<span style="font-size:11px;color:var(--muted);margin-left:8px">${esc(d.version)}</span>`:'';
