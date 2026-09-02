@@ -908,7 +908,12 @@
         if(kw&&!c.kws.includes(kw))return false;
         if(typ==='video'&&!(c.vr!==null&&c.vr>=0.6))return false;
         if(typ==='image'&&!(c.vr!==null&&c.vr<0.6))return false;
-        if(q&&!(c.name.toLowerCase().includes(q)||c.titles.some(t=>t.toLowerCase().includes(q))))return false;
+        if(q){
+          // 归一化后再匹配：忽略空格/标点，避免「施 诗」搜「施诗」搜不到
+          const norm=s=>String(s||'').toLowerCase().replace(/[\s.,!！。，，、·・\-_'"“”]/g,'');
+          const nq=norm(q);
+          if(!(norm(c.name).includes(nq)||c.titles.some(t=>norm(t).includes(nq))))return false;
+        }
         return true;
       });
       const k=cSort.k,d=cSort.dir;
