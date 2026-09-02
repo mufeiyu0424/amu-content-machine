@@ -77,7 +77,7 @@ document.getElementById('pw').addEventListener('keydown',e=>{if(e.key==='Enter')
 const NODE = process.execPath;
 const jobs = []; const jobQueue = [];
 let jobSeq = 0, jobRunning = false;
-const FINALIZE = [['make_digests.mjs'], ['build_dashboard.mjs', '--lang', 'zh']];
+const FINALIZE = [['build_dashboard.mjs', '--lang', 'zh']];
 
 function enqueue(label, steps) {
   const job = { id: ++jobSeq, label, status: '排队中', log: '', ts: Date.now() };
