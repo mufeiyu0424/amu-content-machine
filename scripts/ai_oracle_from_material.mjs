@@ -1,29 +1,19 @@
-// Generate 1-3 ideas from ONE specified material (素材) via DeepSeek — material-led synthesis.
+// Generate 1-3 ideas from ONE specified material (素材) via the configured LLM
+// (DeepSeek / Kimi …) — material-led synthesis.
 //   1) 指定素材 (materials/materials.json 里的某一篇，全文提炼后为主导源)
 //   2) 自身账号分析 (analysis/me-analysis.json, fallback me.json)
 //   3) 小红书同赛道创作者 (creators/*.json — 看板里拉过详情的博主)
 // Appends new ideas to vault/vault.json (does NOT rewrite existing ideas).
 //
 // Usage: node scripts/ai_oracle_from_material.mjs <materialId> [model]
-// Env: DEEPSEEK_API_KEY (or .env.local at repo root)
+// Env: 见 scripts/lib/ai.mjs（各厂商 Key 从 .env.local 读）
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { MODELS, chatOnce, resolveProvider, fastModelFor } from './lib/ai.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 
-function apiKey() {
-  if (process.env.DEEPSEEK_API_KEY) return process.env.DEEPSEEK_API_KEY.trim();
-  const env = path.join(root, '.env.local');
-  if (fs.existsSync(env)) {
-    const m = fs.readFileSync(env, 'utf8').match(/^DEEPSEEK_API_KEY=(.*)$/m);
-    if (m) return m[1].trim().replace(/^["']|["']$/g, '');
-  }
-  return null;
-}
-const key = apiKey();
-if (!key) { console.error('✗ 找不到 DEEPSEEK_API_KEY（.env.local）'); process.exit(1); }
-const MODELS = ['deepseek-v4-flash', 'deepseek-v4-pro'];
 const model = MODELS.includes(process.argv[3]) ? process.argv[3] : 'deepseek-v4-pro';
 
 const materialId = (process.argv[2] || '').trim();
@@ -42,22 +32,23 @@ const note = (material.note || '').trim();
 if (!note) { console.error('✗ 该素材没有正文内容（note 为空）'); process.exit(1); }
 
 async function distillMaterial(title, text) {
-  const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      model: 'deepseek-v4-flash',
+  // 提炼用同厂商的快模型，够用且便宜
+  try {
+    const res = await chatOnce({
+      model: fastModelFor(model),
       messages: [
         { role: 'system', content: '你是内容提炼助手。通读全文，输出紧凑要点供选题策划参考。只输出提炼内容，不要寒暄、不要评价。' },
         { role: 'user', content: `标题：${title}\n\n全文：\n${text}\n\n请提炼输出：\n1. 核心观点（2-3句）\n2. 3-5个适合在小红书表达的切入角度\n3. 3-5句可直接引用的金句` },
       ],
       temperature: 0.3,
       max_tokens: 2000,
-    }),
-    signal: AbortSignal.timeout(120000),
-  });
-  const j = await r.json();
-  return (r.ok && j.choices?.[0]?.message?.content) || '';
+      timeout: 120000,
+    });
+    return res.text || '';
+  } catch (e) {
+    console.log(`  ⚠ 提炼失败：${e.message}`);
+    return '';
+  }
 }
 
 // ── 1) 我的账号分析 ──
@@ -106,12 +97,12 @@ const userMsg = [
   `## 指定素材（本次选题的唯一主题来源）\n标题：${material.title}\n\n${distilled}`,
 ].join('\n\n');
 
-console.log(`→ 调用 DeepSeek 基于素材生成选题（模型：${model}）`);
+const p = resolveProvider(model);
+console.log(`→ 调用 ${p.label} 基于素材生成选题（模型：${model}）`);
 
-const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
-  method: 'POST',
-  headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-  body: JSON.stringify({
+let out;
+try {
+  out = await chatOnce({
     model,
     messages: [
       { role: 'system', content: rules },
@@ -119,12 +110,13 @@ const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
     ],
     temperature: 0.7,
     max_tokens: 8000,
-  }),
-  signal: AbortSignal.timeout(300000),
-});
-const j = await r.json();
-if (!r.ok) { console.error('✗ DeepSeek 报错：', JSON.stringify(j).slice(0, 500)); process.exit(1); }
-let content = j.choices?.[0]?.message?.content || '';
+    timeout: 300000,
+  });
+} catch (e) {
+  console.error('✗ ' + e.message);
+  process.exit(1);
+}
+let content = out.text || out.reasoning;
 if (!content.trim()) { console.error('✗ 模型返回为空'); process.exit(1); }
 
 content = content.replace(/```json|```/g, '').trim();

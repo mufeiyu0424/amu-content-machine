@@ -1312,18 +1312,37 @@
   fillIdeaSelect($('#dr-idea'),'选择选题…');
   fillCouncilDraftSelect();
 
-  /* ══ 模型下拉（每板块可选模型，记住选择） ══ */
-  const MODEL_OPTS=[['deepseek-v4-flash','V4 Flash（快）'],['deepseek-v4-pro','V4 Pro（强）']];
+  /* ══ 模型下拉（每板块可选模型，记住选择） ══
+     模型清单从 /api/models 拉（服务端由 scripts/lib/ai.mjs 统一维护），
+     新增模型只需改那一个文件，前端自动同步。拉取失败时用内置兜底清单。 */
+  const FALLBACK_MODELS=[
+    {id:'deepseek-v4-flash',label:'DeepSeek V4 Flash（快）'},
+    {id:'deepseek-v4-pro',label:'DeepSeek V4 Pro（强推理）'},
+    {id:'kimi-k3',label:'Kimi K3（1024K 超大上下文）'},
+    {id:'kimi-k2.7-code',label:'Kimi K2.7 Code'},
+    {id:'kimi-k2.7-code-highspeed',label:'Kimi K2.7 Code 高速版'},
+    {id:'kimi-k2.6',label:'Kimi K2.6'},
+  ];
+  let MODEL_OPTS=FALLBACK_MODELS.map(m=>[m.id,m.label]);
   function fillModel(sel, def){
     if(!sel) return;
     const saved=localStorage.getItem('cm.model.'+sel.id);
     const cur=MODEL_OPTS.some(m=>m[0]===saved)?saved:def;
-    sel.innerHTML=MODEL_OPTS.map(m=>`<option value="${m[0]}" ${m[0]===cur?'selected':''}>${m[1]}</option>`).join('');
+    sel.innerHTML=MODEL_OPTS.map(m=>`<option value="${esc(m[0])}" ${m[0]===cur?'selected':''}>${esc(m[1])}</option>`).join('');
     sel.onchange=()=>localStorage.setItem('cm.model.'+sel.id, sel.value);
   }
   fillModel($('#dr-model'),'deepseek-v4-flash');
   fillModel($('#cc-model'),'deepseek-v4-pro');
   fillModel($('#or-model'),'deepseek-v4-pro');
+  // 拿到服务端清单后重刷下拉（覆盖兜底清单）
+  fetch('/api/models').then(r=>r.json()).then(j=>{
+    const list=(j&&j.models)||[];
+    if(!list.length) return;
+    MODEL_OPTS=list.map(m=>[m.id,m.label]);
+    fillModel($('#dr-model'),'deepseek-v4-flash');
+    fillModel($('#cc-model'),'deepseek-v4-pro');
+    fillModel($('#or-model'),'deepseek-v4-pro');
+  }).catch(()=>{});
 
   $('#or-run').onclick=()=>{
     if(!confirm('⚠️ 重新生成会覆盖现有全部选题（赛道 + 素材），旧选题将被替换。\n草稿仍会保留在「历史草稿」里，不会丢失。\n\n确定重新生成吗？')) return;

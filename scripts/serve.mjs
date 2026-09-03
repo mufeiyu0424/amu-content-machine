@@ -24,7 +24,8 @@ const port = +(process.argv[2] || 8420);
 const host = process.argv[3] || '127.0.0.1';
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css',
                 '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg' };
-const MODELS = ['deepseek-v4-flash', 'deepseek-v4-pro'];
+// 可用模型（DeepSeek + Kimi 等）由 scripts/lib/ai.mjs 统一维护
+const { MODELS, MODELS_META } = await import('./lib/ai.mjs');
 
 const cors = () => ({ 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, X-Workbench-Password',
@@ -151,6 +152,10 @@ async function api(req, res) {
   const send = (code, obj) => { res.writeHead(code, cors()); res.end(JSON.stringify(obj)); };
   if (req.method === 'GET' && req.url.startsWith('/api/jobs')) {
     return send(200, jobs.map(j => ({ id: j.id, label: j.label, status: j.status, ts: j.ts, log: j.log.slice(-3000) })));
+  }
+  // 可用模型列表（供前端下拉渲染，新增模型只需改 lib/ai.mjs）
+  if (req.method === 'GET' && req.url.startsWith('/api/models')) {
+    return send(200, { models: MODELS_META });
   }
   if (req.method === 'GET' && req.url.startsWith('/api/materials')) {
     const matPath = path.join(root, 'materials', 'materials.json');

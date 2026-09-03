@@ -1,28 +1,16 @@
-// Run the six-judge Writer's Council on ONE idea's draft via DeepSeek.
-// Usage: node scripts/ai_council.mjs <ideaId>
-// Env: DEEPSEEK_API_KEY (or .env.local at repo root)
+// Run the six-judge Writer's Council on ONE idea's draft via the configured
+// LLM (DeepSeek / Kimi …).
+// Usage: node scripts/ai_council.mjs <ideaId> [model]
+// Env: 见 scripts/lib/ai.mjs（各厂商 Key 从 .env.local 读）
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { MODELS, chatOnce, resolveProvider } from './lib/ai.mjs';
 
 const root = path.resolve(import.meta.dirname, '..');
 const ideaId = (process.argv[2] || '').trim();
 if (!ideaId) { console.error('✗ 缺少 ideaId 参数'); process.exit(1); }
-const MODELS = ['deepseek-v4-flash', 'deepseek-v4-pro'];
 const model = MODELS.includes(process.argv[3]) ? process.argv[3] : 'deepseek-v4-pro';
-
-function apiKey() {
-  if (process.env.DEEPSEEK_API_KEY) return process.env.DEEPSEEK_API_KEY.trim();
-  const env = path.join(root, '.env.local');
-  if (fs.existsSync(env)) {
-    const m = fs.readFileSync(env, 'utf8').match(/^DEEPSEEK_API_KEY=(.*)$/m);
-    if (m) return m[1].trim().replace(/^["']|["']$/g, '');
-  }
-  return null;
-}
-
-const key = apiKey();
-if (!key) { console.error('✗ 找不到 DEEPSEEK_API_KEY（.env.local）'); process.exit(1); }
 
 const idxPath = path.join(root, 'drafts', 'index.json');
 const idx = fs.existsSync(idxPath) ? JSON.parse(fs.readFileSync(idxPath, 'utf8')) : {};
@@ -40,33 +28,26 @@ const judges = parts.slice(1).map(sec => {
   const name = header.replace(/^\d+：/, '').trim();
   return { name, prompt: shared + '\n\n## 评委 ' + sec };
 });
-console.log(`→ 评审团开庭（[${ideaId}] ${cur.idea}）：${judges.map(x => x.name).join(' / ')}`);
+console.log(`→ 评审团开庭（[${ideaId}] ${cur.idea}，${resolveProvider(model).label} ${model}）：${judges.map(x => x.name).join(' / ')}`);
 
 async function judge({ name, prompt }) {
-  // V4 Pro 是推理模型，偶尔会把 content 返回空（思考吃光额度/并发下不稳定）。
+  // 推理模型偶尔会把 content 返回空（思考吃光额度/并发下不稳定）。
   // 重试最多 3 次；content 空时兜底用 reasoning_content 尾部；仍失败则记 0 分（不计入平均）。
   let out = '';
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
-      const r = await fetch('https://api.deepseek.com/v1/chat/completions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model,
-          messages: [
-            { role: 'system', content: prompt },
-            { role: 'user', content: `以下是要评审的草稿（选题：${cur.idea}）：\n\n${cur.text}` },
-          ],
-          temperature: 0.3,
-          max_tokens: 32000,
-        }),
-        signal: AbortSignal.timeout(300000),
+      const res = await chatOnce({
+        model,
+        messages: [
+          { role: 'system', content: prompt },
+          { role: 'user', content: `以下是要评审的草稿（选题：${cur.idea}）：\n\n${cur.text}` },
+        ],
+        temperature: 0.3,
+        max_tokens: 32000,
+        timeout: 300000,
       });
-      const j = await r.json();
-      if (!r.ok) throw new Error(`DeepSeek 报错 ${JSON.stringify(j).slice(0, 200)}`);
-      const m = j.choices?.[0]?.message || {};
-      out = m.content || '';
-      if (!/SCORE/i.test(out) && m.reasoning_content) out = m.reasoning_content;
+      out = res.text || '';
+      if (!/SCORE/i.test(out) && res.reasoning) out = res.reasoning;
       if (/SCORE/i.test(out)) break;
     } catch (e) {
       if (attempt === 3) { console.log(`  ${name}: ⚠ ${e.message}`); return { name, score: 0, comment: `评审失败：${e.message}` }; }
